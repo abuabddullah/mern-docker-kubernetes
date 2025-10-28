@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: mern-docker-kubernetes-frontend:latest # built with VITE_API_URL pointing to backend in-cluster
+          image: frontend:local # built with VITE_API_URL pointing to backend in-cluster
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5173 # vite preview / dev server port

@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: mern-docker-kubernetes-backend:latest
+          image: backend:local
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5000
