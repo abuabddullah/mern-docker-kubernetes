@@ -31,10 +31,11 @@ metadata:
 spec:
   selector:
     app: frontend
-   ports:
-     - protocol: TCP   
-     - port: 5173
-       targetPort: 5173
-   type: ClusterIP
+  ports:
+    - protocol: TCP
+      port: 5173
+      targetPort: 5173
+  type: ClusterIP
 
 # we'll port-forward this frontend service to access the UI in browser (http://localhost:5173)
+
