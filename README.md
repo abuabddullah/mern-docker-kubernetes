@@ -1556,11 +1556,10 @@ namespace: devops-part3
 spec:
 selector:
 app: backend
-ports: - protocol: TCP
-
-- port: 5000
-  targetPort: 5000
-  type: ClusterIP
+ports: - protocol: TCP  
+ - port: 5000
+targetPort: 5000
+type: ClusterIP
 
 ```
 **✅ creating "**_**deployment+service**_**" file for frontend**
@@ -1601,11 +1600,10 @@ namespace: devops-part3
 spec:
 selector:
 app: frontend
-ports: - protocol: TCP
-
-- port: 5173
-  targetPort: 5173
-  type: ClusterIP
+ports: - protocol: TCP  
+ - port: 5173
+targetPort: 5173
+type: ClusterIP
 
 # we'll port-forward this frontend service to access the UI in browser (http://localhost:5173)
 
@@ -2379,6 +2377,594 @@ The flow of a request from a user's browser to a pod and back involves six key s
 
 ➡️delete all the images, namespaces, containers, kubernetes clusters
 
+### configure addons for ingress-nginx-ingressController
+
+**✅ instlall addons**
+
+➡️➡️run command
+
+```
+minikube addons enable ingress
+```
+
+#### 🧠 **যাচাই করো ingress controller চলছে কিনা**
+
+```bash
+kubectl get pods -n kube-system
+kubectl get pods -n ingress-nginx
+kubectl get all -n ingress-nginx
+```
+
+এখানে দেখতে পাবে:
+
+```
+abdullah@abdullah-MS-7E05:~/Desktop/devlife/sangamdevops/mern-docker-kubernetes$ `kubectl get pods -n kube-system`
+NAME                               READY   STATUS    RESTARTS      AGE
+coredns-674b8bbfcf-mdtl7           1/1     Running   0             11m
+etcd-minikube                      1/1     Running   0             11m
+kube-apiserver-minikube            1/1     Running   0             11m
+kube-controller-manager-minikube   1/1     Running   0             11m
+kube-proxy-fq7zb                   1/1     Running   0             11m
+kube-scheduler-minikube            1/1     Running   0             11m
+storage-provisioner                1/1     Running   1 (10m ago)   11m
+abdullah@abdullah-MS-7E05:~/Desktop/devlife/sangamdevops/mern-docker-kubernetes$ `kubectl get pods -n ingress-nginx`
+NAME                                       READY   STATUS      RESTARTS   AGE
+ingress-nginx-admission-create-pk78l       0/1     Completed   0          4m52s
+ingress-nginx-admission-patch-899f4        0/1     Completed   0          4m52s
+ingress-nginx-controller-67c5cb88f-kdfn7   1/1     Running     0          4m52s
+abdullah@abdullah-MS-7E05:~/Desktop/devlife/sangamdevops/mern-docker-kubernetes$ `kubectl get all -n ingress-nginx`
+NAME                                           READY   STATUS      RESTARTS   AGE
+pod/ingress-nginx-admission-create-pk78l       0/1     Completed   0          6m54s
+pod/ingress-nginx-admission-patch-899f4        0/1     Completed   0          6m54s
+pod/ingress-nginx-controller-67c5cb88f-kdfn7   1/1     Running     0          6m54s
+
+NAME                                         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)                      AGE
+service/ingress-nginx-controller             NodePort    10.102.197.124   <none>        80:30137/TCP,443:31928/TCP   6m54s
+service/ingress-nginx-controller-admission   ClusterIP   10.104.233.248   <none>        443/TCP                      6m54s
+
+NAME                                       READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/ingress-nginx-controller   1/1     1            1           6m54s
+
+NAME                                                 DESIRED   CURRENT   READY   AGE
+replicaset.apps/ingress-nginx-controller-67c5cb88f   1         1         1       6m54s
+
+NAME                                       STATUS     COMPLETIONS   DURATION   AGE
+job.batch/ingress-nginx-admission-create   Complete   1/1           29s        6m54s
+job.batch/ingress-nginx-admission-patch    Complete   1/1           30s        6m54s
+```
+
+### _server.js_ file configuration
+
+**✅ adding '0.0.0.0'** **during server listening**
+
+```
+app.listen(PORT, `'0.0.0.0'`, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
+```
+
+### _client-side Dockerfile_ configuration
+
+**✅ modifying \*\***_'client/Dockerfile'_\*\* **as per bellow**
+
+```
+# ===== Old version =====
+# FROM node:20-alpine
+# WORKDIR /app
+# COPY package*.json ./
+# RUN npm install
+# COPY . .
+# ARG VITE_API_URL
+# ENV VITE_API_URL=$VITE_API_URL
+# RUN npm run build
+# EXPOSE 5173
+# CMD [ "npm", "run", "preview" ]
+
+
+# ===== New version =====
+# ===== Build stage =====
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=$VITE_API_URL
+RUN npm run build
+
+# ===== Run stage =====
+FROM node:20-alpine
+WORKDIR /app
+RUN npm install -g serve
+COPY --from=build /app/dist ./dist
+EXPOSE 5173
+CMD ["serve", "-s", "dist", "-l", "5173"]
+```
+
+### .yaml file configuration
+
+**✅ creating "**_**deployment+service**_**" file for ingress**
+
+➡️➡️cerate "_**mern-docker-kubernetes/k8s/04-ingress.yaml**_"
+
+```
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mern-ingress
+  namespace: devops-part3
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: merndemo.local
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 5000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 5173
+```
+
+এই `Ingress` ফাইলটা আসলে তোমার **frontend (React app)** আর **backend (Node.js/Express API)** — দুটো সার্ভিসকে একসাথে expose করার জন্য ব্যবহৃত হচ্ছে। চলো একদম সহজভাবে বুঝে নিই 👇
+
+### 🌐 **1️⃣ Ingress কী করে?**
+
+👉 Kubernetes-এ `Ingress` হলো এমন একটা object,
+যেটা **বাইরের (external)** ট্রাফিককে **ভিতরের (internal)** সার্ভিসে পাঠানোর “গেটওয়ে” হিসেবে কাজ করে।
+
+তুমি যখন ব্রাউজারে `http://merndemo.local` টাইপ করবে, তখন:
+
+- ট্রাফিক প্রথমে যাবে Ingress Controller (যেমন `nginx-ingress-controller` ) এর কাছে।
+- তারপর সে রিকোয়েস্ট দেখে বুঝবে কোন সার্ভিসে পাঠাতে হবে — frontend না backend।
+  🧩 **2️⃣ YAML Breakdown**
+
+- `apiVersion` → Kubernetes API version
+- `kind` → Ingress (মানে এটা একটা ingress resource)
+- `namespace` → কোন namespace-এ এই ingress কাজ করবে
+- `annotations` → nginx-specific config (এখানে file upload limit 10MB)
+- যদি কেউ যায় 👉 `http://merndemo.local/api/users`
+  তাহলে রিকোয়েস্ট যাবে backend সার্ভিসে (Node server)।
+- আর যদি যায় 👉 `http://merndemo.local/`
+  তাহলে React frontend সার্ভার সার্ভ করবে।
+
+### Build images for K8S+ingressController
+
+**✅ for backend**
+
+➡️➡️run command from root
+
+```
+docker build -t backend:ingress ./server
+```
+
+**✅ for frontend**
+
+➡️➡️run command from root
+
+➡️➡️➡️ use **✅✅**`VITE_API_URL=/api`**✅✅**`not`✖️✖️`VITE_API_URL=http://localhost:5000/api  ` ✖️✖️
+
+```
+docker build --build-arg VITE_API_URL=/api -t frontend:ingress ./client
+```
+
+### Configmap
+
+**✅ creating **_**configmap.yaml**_** file**
+
+➡️➡️create file at "_**k8s/configmap.yaml**_"
+
+```
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: devops-part3
+data:
+  MONGO_HOST: "mongo"
+  FRONTEND_URL: "http://localhost:5173"
+```
+
+**✅ creating **_**secret-mongo.yaml**_** file**
+
+➡️➡️get code from (_**linux root**_) for this(_**secret-mongo.yaml**_) file
+
+➡️➡️➡️ এই কোডটা যেকোন পিসি থেকে সেইম গিটহাব একাউন্ট এর জন্য সেইম ই আসে
+
+```
+echo -n "mongodb://mongo:27017/taskdb" | base64
+```
+
+```
+ooaaow@DESKTOP-2NU0LSC:~$ `echo -n "mongodb://mongo:27017/taskdb" | base64`
+ bW9uZ29kYjovL21vbmdvOjI3MDE3L3Rhc2tkYg==
+```
+
+➡️➡️create file at "_**secret-mongo.yaml**_"
+
+```
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mongo-secret
+  namespace: devops-part3
+type: Opaque
+data:
+  MONGO_URI: bW9uZ29kYjovL21vbmdvOjI3MDE3L3Rhc2tkYg==
+```
+
+### Rebuild Images with configured _**.yaml**_
+
+**✅ creating "**_**deployment+service**_**" file for backend**
+
+➡️➡️cerate "_**mern-docker-kubernetes/k8s/02.3-backend-**_**ingress**_**.yaml**_"
+
+➡️➡️➡️ image এর না্ম ছাড়া আর change নাই
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: devops-part3
+  labels:
+    app: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: backend:ingress
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: mongo-secret
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: devops-part3
+spec:
+  selector:
+    app: backend
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP
+```
+
+**✅ creating "**_**deployment+service**_**" file for frontend**
+
+➡️➡️cerate "_**mern-docker-kubernetes/k8s/03.3-frontend-**_**ingress**_**.yaml**_"
+
+➡️➡️➡️ image এর না্ম ছাড়া আর change নাই
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: devops-part3
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: frontend:ingress # built with VITE_API_URL pointing to backend in-cluster
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5173 # vite preview / dev server port
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: devops-part3
+spec:
+  selector:
+    app: frontend
+  ports:
+    - protocol: TCP
+      port: 5173
+      targetPort: 5173
+  type: ClusterIP
+```
+
+**✅ creating "**_**deployment+service**_**" file for mongo**
+
+➡️➡️cerate "_**mern-docker-kubernetes/k8s/01-mongo.yaml**_" will be same
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo
+  namespace: devops-part3
+  labels:
+    app: mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:6.0
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+      volumes:
+        - name: mongo-data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: devops-part3
+spec:
+  selector:
+    app:mongo
+   ports:
+     - port: 27017
+       targetPort: 27017
+   type: ClusterIP
+```
+
+**✅ creating "**_**deployment+service**_**" file for **_**namespace**_
+
+➡️➡️cerate "_**mern-docker-kubernetes/k8s/00-namespace.yaml**_" will be same
+
+```
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: devops-part3
+```
+
+**✅ Load images into Minikube**
+
+➡️ Run the following commands step by step:
+
+```bash
+minikube image load backend:ingress
+minikube image load frontend:ingress
+minikube image ls
+```
+
+**Deploy Mongo**
+
+```bash
+kubectl apply -f k8s/00-namespace.yaml
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/secret-mongo.yaml
+```
+
+```
+kubectl -n devops-part3 get configmap app-config -o yaml
+```
+
+```
+kubectl -n devops-part3 get secret mongo-secret -o yaml
+```
+
+```
+kubectl apply -f k8s/01-mongo.yaml
+```
+
+**wait for mongo pod to be ready (block untill ready or timeout)**
+
+```
+kubectl -n devops-part3 wait --for=condition=ready pod -l app=mongo --timeout=180s
+```
+
+```
+kubectl -n devops-part3 get pods -l app=mongo -o wide
+```
+
+**Deploy Backend**
+
+---
+
+```
+kubectl apply -f k8s/02.3-backend-ingress.yaml
+```
+
+```
+kubectl -n devops-part3 wait --for=condition=ready pod -l app=backend --timeout=180s
+```
+
+```
+kubectl -n devops-part3 get pods -l app=backend -o wide
+```
+
+```
+kubectl -n devops-part3 get svc backend -o wide
+```
+
+**Deploy Frontend**
+
+---
+
+```
+kubectl apply -f k8s/03.3-frontend-ingress.yaml
+```
+
+```
+kubectl -n devops-part3 wait --for=condition=ready pod -l app=frontend --timeout=180s
+```
+
+```
+kubectl -n devops-part3 get pods -l app=frontend -o wide
+```
+
+```
+kubectl -n devops-part3 get svc frontend -o wide
+```
+
+**Deploy ingress.yaml**
+
+---
+
+```
+kubectl apply -f k8s/04-ingress.yaml
+```
+
+**Check**
+
+➡️➡️ show pods and services in the namespace with details
+
+---
+
+```
+kubectl -n devops-part3 get pods,svc -o wide
+```
+
+---
+
+**createing minikube tunnel**
+
+➡️➡️ `minikube tunnel` হলো Kubernetes LoadBalancer services-এর জন্য external access তৈরি করার টানেল।
+👉 এটা তোমার local machine-এ একটি network route তৈরি করে যাতে তুমি LoadBalancer-type service গুলো **localhost থেকে access করতে পারো**।
+
+🔔🔔🔔🔔*Note: ***_plz do not close the terminal as this process must stay alive fort the tunnel to be accessible_**
+
+```
+minikube tunnel
+```
+
+```
+abdullah@abdullah-MS-7E05:~/Desktop/devlife/sangamdevops/mern-docker-kubernetes$ `minikube tunnel`
+[sudo] password for abdullah:
+Status:
+        machine: minikube
+        pid: 404014
+        route: 10.96.0.0/12 -> 192.168.49.2
+        minikube: Running
+        services: []
+    errors:
+                minikube: no errors
+                router: no errors
+                loadbalancer emulator: no errors
+```
+
+## **add host entry with administrative rights**
+
+#### 🧠 check tunnel status [on another terminal]
+
+```bash
+minikube tunnel status
+```
+
+#### 🧠 check ingress address
+
+**➡️➡️ the address can be found from here**
+
+```bash
+kubectl get ingress -A
+```
+
+```
+﻿abdullah@abdullah-MS-7E05:~/Desktop/devlife/sangamdevops/mern-docker-kubernetes$ `kubectl get ingress -A`
+NAMESPACE      NAME           CLASS   HOSTS            ADDRESS        PORTS   AGE
+devops-part3   mern-ingress   nginx   merndemo.local   `_**192.168.49.2**_`   80      29m
+```
+
+### ➡️➡️ **linux: \*\***\_ \_\*\*
+
+#### 🧠 Open with `sudo` permission [_তুমি যেকোনো file path থেকেই নিচের কমান্ড দাও _]
+
+🔔🔔🔔🔔*Note: for ***_windows _**_open the file : _`_**C:\Windows\System32\drivers\etc\hosts**_` at administrative mode
+
+```bash
+sudo nano /etc/hosts
+```
+
+`/etc/hosts` ফাইল-এ নিচের লাইনটা যোগ করো:
+
+```bash
+192.168.49.2 merndemo.local
+```
+
+```
+abdullah@abdullah-MS-7E05:~/Desktop/devlife/sangamdevops/mern-docker-kubernetes$ `cat /etc/hosts`
+127.0.0.1 localhost
+127.0.1.1 abdullah-MS-7E05
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+# Added by Docker Desktop
+# To allow the same kube context to work on the host and the container:
+127.0.0.1       kubernetes.docker.internal
+# add host entry with administrative rights
+`_**192.168.49.2 merndemo.local**_`
+# End of section
+```
+
+👉 এতে browser ওই domain resolve করতে পারবে তোমার local Kubernetes ingress-এর দিকে।
+
+### check : [﻿merndemo.local/](http://merndemo.local/) | [﻿merndemo.local/api/tasks](http://merndemo.local/api/tasks)
+
+### \*\*\*\*
+
 ### sadfsadfsddf
 
 **✅ asdsdfasfasdf**
@@ -2386,15 +2972,5 @@ The flow of a request from a user's browser to a pod and back involves six key s
 ➡️➡️asdfsdfsdf
 
 ```
-asdfsdfsdsfsdf
-```
 
-### sadfsadfsddf
-
-**✅ asdsdfasfasdf**
-
-➡️➡️asdfsdfsdf
-
-```
-asdfsdfsdsfsdf
 ```
