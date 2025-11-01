@@ -2963,7 +2963,159 @@ ff02::2 ip6-allrouters
 
 ### check : [﻿merndemo.local/](http://merndemo.local/) | [﻿merndemo.local/api/tasks](http://merndemo.local/api/tasks)
 
-### \*\*\*\*
+# Storage and persistence in kubernetes during pod restarting
+
+monog db এর ডাটা মূলত pods এ থাকে আর তাই যদি কোনো কারণে pod delete or restart হয়ে যায় তাহলে ডাটা ও ডিলিট হয়ে যায় আর এর জন্য আমাদের pvc useকরে জিনিসটা সল্ভ করতে হয়
+
+### Deleting Pods
+
+**✅ delete pod of the "devops-part3" namespace**
+
+➡️➡️ run command
+
+```
+kubectl -n devops-part3 delete pod -l app=mongo
+```
+
+**✅ check pod of the "devops-part3" namespace**
+
+➡️➡️ run command
+
+```
+kubectl -n devops-part3 get pods -w
+```
+
+```
+abdullah@abdullah-MS-7E05:~/Desktop/devlife/sangamdevops/mern-docker-kubernetes$ `kubectl -n devops-part3 get pods -w`
+NAME                        READY   STATUS    RESTARTS        AGE
+backend-665c78cbdd-kwzrs    1/1     Running   2 (15m ago)     8h
+backend-665c78cbdd-sjf28    1/1     Running   2 (15m ago)     8h
+frontend-7b7856f767-98fcz   1/1     Running   1 (5h53m ago)   8h
+mongo-5c748dfffc-6r4wj      1/1     Running   0               77s
+```
+
+![Screenshot from 2025-11-01 14-42-49.png](https://eraser.imgix.net/workspaces/x33nxToEUSJkX5hEuvG9/fv0a2HExkUNpYuXshUAZM4zKYGj2/Screenshot%20from%202025-11-01%2014-42-49_JE-WIrrsg8bBrAjvJhvDh.png?ixlib=js-3.7.0 "Screenshot from 2025-11-01 14-42-49.png")
+
+![Screenshot from 2025-11-01 14-43-33.png](https://eraser.imgix.net/workspaces/x33nxToEUSJkX5hEuvG9/fv0a2HExkUNpYuXshUAZM4zKYGj2/Screenshot%20from%202025-11-01%2014-43-33_2ptKqPaSJJ-fLZwOIEN4T.png?ixlib=js-3.7.0 "Screenshot from 2025-11-01 14-43-33.png")
+
+### Include PVC [PersistentVolumeClaim]
+
+**✅ create "mongo-pvc.yaml" for pvc**
+
+```
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+  namespace: devops-part3
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+- `**kind: PersistentVolumeClaim**` : এটি Kubernetes-কে বলে যে এটি একটি স্টোরেজ অনুরোধ ।
+- `**name: mongo-pvc**` : এটি PVC-এর নাম, যা পরে Deployment ফাইলে ব্যবহার করা হবে ।
+- `**storage: 1Gi**` : এটি প্রয়োজনীয় স্টোরেজের পরিমাণ (1 গিগাবাইট) উল্লেখ করে ।
+  **✅ update "01-mongo.yaml" **
+
+➡️➡️ change in the volume replace the "`_**emptyDir: {}**_`"
+
+```
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongo
+  namespace: devops-part3
+  labels:
+    app: mongo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:6.0
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+      volumes:
+        - name: mongo-data
+          _**persistentVolumeClaim:
+            claimName: mongo-pvc**_
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: devops-part3
+spec:
+  selector:
+    app: mongo
+  ports:
+    - port: 27017
+      targetPort: 27017
+  type: ClusterIP
+```
+
+**Deploy pvc i.e **_**persistentVolumeClaim**_
+
+---
+
+```
+kubectl apply -f k8s/mongo-pvc.yaml
+```
+
+**Deploy 01-mongo.yaml**
+
+---
+
+```
+kubectl apply -f k8s/01-mongo.yaml
+```
+
+```
+kubectl -n devops-part3 rollout restart deployment/mongo
+```
+
+```
+kubectl -n devops-part3 rollout status deployment/mongo
+```
+
+```
+kubectl -n devops-part3 get pvc
+```
+
+**✅ delete pod of the "devops-part3" namespace**
+
+➡️➡️ run command
+
+```
+kubectl -n devops-part3 delete pod -l app=mongo
+```
+
+- still no data damage even after pods delete or restart
+
+### asdfsadfasdfs
+
+**✅ asdsdfasfasdf**
+
+➡️➡️asdfsdfsdf
+
+```
+
+```
 
 ### sadfsadfsddf
 

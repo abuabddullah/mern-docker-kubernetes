@@ -25,10 +25,10 @@ spec:
               mountPath: /data/db
       volumes:
         - name: mongo-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: mongo-pvc
 
 ---
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -41,4 +41,3 @@ spec:
     - port: 27017
       targetPort: 27017
   type: ClusterIP
-
