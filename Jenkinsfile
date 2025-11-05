@@ -2,8 +2,8 @@ pipeline {
   agent any
 
   environment {
-    FRONTEND_IMAGE = "mern-frontend:jenkins"
-    BACKEND_IMAGE  = "mern-backend:jenkins"
+    FRONTEND_IMAGE = "frontend:ingress"
+    BACKEND_IMAGE  = "backend:ingress"
     PORT = "5000"
     MONGO_URI = "mongodb://mongo:27017/taskdb"
   }
@@ -11,7 +11,7 @@ pipeline {
   stages {
     stage('Checkout Code') {
       steps {
-        git url: 'https://github.com/sangammukherjee/devops-youtube-course-2025.git', branch: 'main'
+        git url: 'https://github.com/abuabddullah/mern-docker-kubernetes.git', branch: 'main'
       }
     }
 
